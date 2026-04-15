@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_session.dart';
+import '../services/staff_api.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -11,49 +12,73 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isEditing = false;
-  
-  // Example state for profile data
-  String _phone = '+91 98765 43210';
-  String _email = 'rajesh.kumar@shgbank.in';
-  String _zone = 'Rampur Block, UP';
-
-  final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _zoneController = TextEditingController();
+  final StaffApi _staffApi = StaffApi();
+  bool _isLoading = true;
+  String? _error;
+  Map<String, dynamic>? _staff;
 
   @override
   void initState() {
     super.initState();
-    _phoneController.text = _phone;
-    _emailController.text = _email;
-    _zoneController.text = _zone;
+    _fetchStaff();
   }
 
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _emailController.dispose();
-    _zoneController.dispose();
-    super.dispose();
-  }
-
-  void _toggleEdit() {
+  Future<void> _fetchStaff() async {
+    final staffId = AuthSession.instance.staffId;
+    if (staffId == null) {
+      setState(() {
+        _isLoading = false;
+        _error = 'Staff ID not found in session';
+      });
+      return;
+    }
     setState(() {
-      if (_isEditing) {
-        // Save changes
-        _phone = _phoneController.text;
-        _email = _emailController.text;
-        _zone = _zoneController.text;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      _isEditing = !_isEditing;
+      _isLoading = true;
+      _error = null;
     });
+    try {
+      final data = await _staffApi.fetchStaff(staffId);
+      if (!mounted) return;
+      setState(() {
+        _staff = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load profile: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String get _displayName {
+    final s = _staff;
+    if (s == null) return '—';
+    final display = s['displayName']?.toString();
+    if (display != null && display.isNotEmpty) return display;
+    final first = s['firstname']?.toString() ?? '';
+    final last = s['lastname']?.toString() ?? '';
+    return '$first $last'.trim().isEmpty ? '—' : '$first $last'.trim();
+  }
+
+  String get _initials {
+    final name = _displayName;
+    if (name == '—') return '?';
+    final parts = name.replaceAll(',', ' ').trim().split(RegExp(r'\s+'));
+    final first = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0][0] : '';
+    final second = parts.length > 1 && parts[1].isNotEmpty ? parts[1][0] : '';
+    final result = (first + second).toUpperCase();
+    return result.isEmpty ? '?' : result;
+  }
+
+  String _formatJoiningDate(dynamic v) {
+    if (v is List && v.length >= 3) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      final m = (v[1] is int && v[1] >= 1 && v[1] <= 12) ? months[v[1] - 1] : v[1].toString();
+      return '${v[2]} $m ${v[0]}';
+    }
+    return v?.toString() ?? '—';
   }
 
   void _handleLogout() {
@@ -70,12 +95,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context); // close dialog
+              Navigator.pop(context);
               await AuthSession.instance.clear();
               if (!mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false, // remove all previous routes
+                (route) => false,
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -87,19 +112,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _handleMenuClick(String label) {
-    if (label == 'Collection History') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your collection history is currently up to date.')),
-      );
-    } else if (label == 'Notifications') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You have 0 new notifications.')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Opening $label...')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Opening $label...')),
+    );
   }
 
   @override
@@ -111,29 +126,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppTheme.primaryColor,
         actions: [
           IconButton(
-            onPressed: _toggleEdit,
-            icon: Icon(_isEditing ? Icons.save_rounded : Icons.edit_outlined),
+            onPressed: _isLoading ? null : _fetchStaff,
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-      body: ListView(
-        children: [
-          _buildHeader(),
-          const SizedBox(height: 16),
-          _buildStatsRow(),
-          const SizedBox(height: 16),
-          _buildInfoSection(),
-          const SizedBox(height: 16),
-          _buildMenuSection(context),
-          const SizedBox(height: 24),
-          _buildLogoutButton(context),
-          const SizedBox(height: 24),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 56, color: Colors.red),
+                        const SizedBox(height: 12),
+                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textSecondary)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(onPressed: _fetchStaff, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchStaff,
+                  color: AppTheme.primaryColor,
+                  child: ListView(
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 16),
+                      _buildInfoSection(),
+                      const SizedBox(height: 16),
+                      _buildMenuSection(context),
+                      const SizedBox(height: 24),
+                      _buildLogoutButton(context),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
     );
   }
 
   Widget _buildHeader() {
+    final s = _staff ?? {};
+    final isActive = s['isActive'] == true;
+    final externalId = s['externalId']?.toString();
+    final role = s['isLoanOfficer'] == true ? 'Loan Officer' : 'Field Staff';
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
@@ -156,10 +196,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'RK',
-                    style: TextStyle(
+                    _initials,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
@@ -167,103 +207,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: AppTheme.secondaryColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+              if (isActive)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: AppTheme.secondaryColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.check, color: Colors.white, size: 14),
                   ),
-                  child: const Icon(Icons.check, color: Colors.white, size: 14),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Rajesh Kumar',
-            style: TextStyle(
+          Text(
+            _displayName,
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: AppTheme.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Field Collection Officer',
-            style: TextStyle(
+          Text(
+            role,
+            style: const TextStyle(
               fontSize: 13,
               color: AppTheme.textSecondary,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppTheme.secondaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'Employee ID: EMP-2024-0087',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.secondaryColor,
-                fontWeight: FontWeight.w600,
+          if (externalId != null && externalId.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppTheme.secondaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Employee ID: $externalId',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.secondaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
-
-  Widget _buildStatsRow() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _stat('24', 'Groups'),
-          _vDivider(),
-          _stat('147', 'Members'),
-          _vDivider(),
-          _stat('₹4.7L', 'Collected'),
-          _vDivider(),
-          _stat('96%', 'Target'),
-        ],
-      ),
-    );
-  }
-
-  Widget _stat(String value, String label) {
-    return Column(
-      children: [
-        Text(value,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11)),
-      ],
-    );
-  }
-
-  Widget _vDivider() =>
-      Container(width: 1, height: 32, color: Colors.white30);
 
   Widget _buildInfoSection() {
+    final s = _staff ?? {};
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -274,73 +277,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Personal Information',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
-              if (_isEditing)
-                const Text('Editing Mode',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.orange)),
-            ],
-          ),
+          const Text('Personal Information',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary)),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
-          _buildEditableRow(Icons.phone_rounded, 'Phone', _phoneController),
-          _buildEditableRow(Icons.email_rounded, 'Email', _emailController),
-          _buildEditableRow(Icons.location_on_rounded, 'Zone', _zoneController),
-          _infoRow(Icons.calendar_today_rounded, 'Joined', 'March 2022', false),
+          _infoRow(Icons.badge_rounded, 'Staff ID', s['id']?.toString() ?? '—'),
+          _infoRow(Icons.phone_rounded, 'Mobile', s['mobileNo']?.toString() ?? '—'),
+          _infoRow(Icons.business_rounded, 'Office', s['officeName']?.toString() ?? '—'),
+          _infoRow(
+            Icons.verified_user_rounded,
+            'Status',
+            s['isActive'] == true ? 'Active' : 'Inactive',
+          ),
+          _infoRow(Icons.calendar_today_rounded, 'Joined', _formatJoiningDate(s['joiningDate'])),
         ],
       ),
     );
   }
 
-  Widget _buildEditableRow(IconData icon, String label, TextEditingController controller) {
-    if (_isEditing) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 16, color: AppTheme.primaryColor),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                controller: controller,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
-                decoration: InputDecoration(
-                  labelText: label,
-                  labelStyle: const TextStyle(fontSize: 12),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      return _infoRow(icon, label, controller.text, true);
-    }
-  }
-
-  Widget _infoRow(IconData icon, String label, String value, bool addPadding) {
+  Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: addPadding ? 8 : 4),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Container(
@@ -352,18 +313,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Icon(icon, size: 16, color: AppTheme.primaryColor),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppTheme.textSecondary)),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.textSecondary)),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary)),
+              ],
+            ),
           ),
         ],
       ),

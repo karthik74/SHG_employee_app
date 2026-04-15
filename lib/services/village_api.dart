@@ -17,7 +17,17 @@ class VillageApi {
     return const [];
   }
 
-  Future<dynamic> approveVillage(String villageId) {
-    return _client.post('/villages/$villageId', body: {'action': 'approve'});
+  Future<dynamic> approveVillage(String villageId, {DateTime? activationDate}) {
+    final date = activationDate ?? DateTime.now();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final formatted = '${date.day} ${months[date.month - 1]} ${date.year}';
+    return _client.post('/villages/$villageId?command=activate', body: {
+      'activationDate': formatted,
+      'dateFormat': 'dd MMMM yyyy',
+      'locale': 'en',
+    });
   }
 }

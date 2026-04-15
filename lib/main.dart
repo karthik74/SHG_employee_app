@@ -104,58 +104,70 @@ class _MainNavigationState extends State<MainNavigation> {
           ],
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: List.generate(_navItems.length, (index) {
-                final item = _navItems[index];
-                final isSelected = _currentIndex == index;
-                return GestureDetector(
-                  onTap: () => setState(() => _currentIndex = index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.primaryColor.withOpacity(0.12)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.icon,
-                          color: isSelected
-                              ? AppTheme.primaryColor
-                              : Colors.grey[400],
-                          size: 22,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final scale = (width / 375).clamp(1.0, 1.6);
+              final iconSize = 22.0 * scale;
+              final fontSize = 10.0 * scale;
+              final vPad = 10.0 * scale;
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: vPad),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(_navItems.length, (index) {
+                    final item = _navItems[index];
+                    final isSelected = _currentIndex == index;
+                    return Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => setState(() => _currentIndex = index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: EdgeInsets.symmetric(horizontal: 4 * scale),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 8 * scale, vertical: 8 * scale),
+                          decoration: BoxDecoration(
                             color: isSelected
-                                ? AppTheme.primaryColor
-                                : Colors.grey[400],
+                                ? AppTheme.primaryColor.withOpacity(0.12)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                item.icon,
+                                color: isSelected
+                                    ? AppTheme.primaryColor
+                                    : Colors.grey[400],
+                                size: iconSize,
+                              ),
+                              SizedBox(height: 4 * scale),
+                              Text(
+                                item.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: fontSize,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? AppTheme.primaryColor
+                                      : Colors.grey[400],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-            ),
+                      ),
+                    );
+                  }),
+                ),
+              );
+            },
           ),
         ),
       ),

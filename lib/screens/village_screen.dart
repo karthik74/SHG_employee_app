@@ -28,18 +28,40 @@ class _VillageScreenState extends State<VillageScreen> {
     try {
       final items = await _villageApi.fetchVillages();
 
+      Map<String, String> mapItem(dynamic item) {
+        final pop = item['totalPopulation']?.toString()
+            ?? item['population']?.toString() ?? 'N/A';
+        final dist = item['distancefrompanchayat']?.toString()
+            ?? item['distanceFromPanchayat']?.toString();
+        return {
+          'id': item['id']?.toString() ?? item['name']?.toString() ?? 'temp_id',
+          'name': item['name']?.toString()
+              ?? item['villageTown']?.toString()
+              ?? item['villageName']?.toString() ?? 'Unknown',
+          'population': pop,
+          'distance': dist != null ? '$dist km' : 'N/A',
+          'network': item['networkFacility']?.toString() ?? 'N/A',
+        };
+      }
+
+      final pending = <Map<String, String>>[];
+      final approved = <Map<String, String>>[];
+      for (final item in items) {
+        final statusValue = (item['status'] is Map
+                ? item['status']['value']?.toString()
+                : null)
+            ?.toLowerCase();
+        final mapped = mapItem(item);
+        if (statusValue == 'active' || statusValue == 'approved') {
+          approved.add(mapped);
+        } else {
+          pending.add(mapped);
+        }
+      }
+
       setState(() {
-        _pendingVillages = items.map<Map<String, String>>((item) {
-          return {
-            'id': item['id']?.toString() ?? item['name']?.toString() ?? 'temp_id',
-            'name': item['name']?.toString() ?? item['villageName']?.toString() ?? 'Unknown',
-            'population': item['population']?.toString() ?? 'N/A',
-            'distance': item['distanceFromPanchayat']?.toString() != null
-                ? '${item['distanceFromPanchayat']} km' : 'N/A',
-            'network': item['networkFacility']?.toString() ?? 'N/A',
-          };
-        }).toList();
-        _approvedVillages.clear();
+        _pendingVillages = pending;
+        _approvedVillages = approved;
       });
     } catch (e) {
       debugPrint('Error loading villages from API: $e');

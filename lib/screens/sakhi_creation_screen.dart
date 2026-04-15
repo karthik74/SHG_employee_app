@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/sakhi_api.dart';
+import '../services/auth_session.dart';
 import '../theme/app_theme.dart';
 
 class SakhiCreationScreen extends StatefulWidget {
@@ -43,6 +44,11 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
   bool _isPanVerifying = false;
   String _panStatus = "";
 
+  bool _sakhiMobileVerified = false;
+  bool _spouseMobileVerified = false;
+  bool _isSendingSakhiOtp = false;
+  bool _isSendingSpouseOtp = false;
+
   // Image files
   File? _sakhiPhoto;
   File? _aadharPhoto;
@@ -57,6 +63,195 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
     _tabController = TabController(length: 2, vsync: this);
     _fetchSakhis();
     _loadTemplateData();
+    _mobileController.addListener(() {
+      if (_sakhiMobileVerified) setState(() => _sakhiMobileVerified = false);
+    });
+    _spouseMobileController.addListener(() {
+      if (_spouseMobileVerified) setState(() => _spouseMobileVerified = false);
+    });
+  }
+
+  Future<void> _verifyMobile({required bool isSpouse}) async {
+    final controller = isSpouse ? _spouseMobileController : _mobileController;
+    final number = controller.text.trim();
+    if (number.length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid 10-digit mobile number')),
+      );
+      return;
+    }
+
+    setState(() {
+      if (isSpouse) {
+        _isSendingSpouseOtp = true;
+      } else {
+        _isSendingSakhiOtp = true;
+      }
+    });
+
+    try {
+      await _sakhiApi.sendOtp(number);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send OTP: $e')),
+      );
+      setState(() {
+        _isSendingSakhiOtp = false;
+        _isSendingSpouseOtp = false;
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isSendingSakhiOtp = false;
+      _isSendingSpouseOtp = false;
+    });
+
+    final otpController = TextEditingController();
+    final verified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        bool verifying = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Verify ${isSpouse ? "Spouse" : "Sakhi"} Mobile'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('OTP sent to $number', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: otpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'Enter OTP',
+                    counterText: '',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: verifying ? null : () => Navigator.pop(dialogCtx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: verifying
+                    ? null
+                    : () async {
+                        final otp = otpController.text.trim();
+                        if (otp.isEmpty) return;
+                        setDialogState(() => verifying = true);
+                        try {
+                          final ok = await _sakhiApi.verifyOtp(number, otp);
+                          if (!ctx.mounted) return;
+                          if (ok) {
+                            Navigator.pop(dialogCtx, true);
+                          } else {
+                            setDialogState(() => verifying = false);
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('Invalid OTP')),
+                            );
+                          }
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setDialogState(() => verifying = false);
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text('Verification failed: $e')),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor, foregroundColor: Colors.white),
+                child: verifying
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Verify'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (verified == true) {
+      setState(() {
+        if (isSpouse) {
+          _spouseMobileVerified = true;
+        } else {
+          _sakhiMobileVerified = true;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mobile verified successfully'), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  Widget _buildMobileVerifyField({
+    required String label,
+    required TextEditingController controller,
+    required bool verified,
+    required bool sending,
+    required VoidCallback onVerify,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              maxLength: 10,
+              decoration: InputDecoration(
+                labelText: label,
+                counterText: '',
+                prefixIcon: Icon(Icons.phone_android, color: Colors.grey[500], size: 20),
+                suffixIcon: verified
+                    ? const Icon(Icons.verified, color: Colors.green)
+                    : null,
+                filled: true,
+                fillColor: Colors.grey[50],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[200]!)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) return 'Required';
+                if (value.trim().length != 10) return 'Must be 10 digits';
+                if (!verified) return 'Please verify via OTP';
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: verified || sending ? null : onVerify,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: verified ? Colors.green : AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
+              child: sending
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text(verified ? 'Verified' : 'Verify', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -77,7 +272,9 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
   Future<void> _fetchSakhis() async {
     setState(() => _isLoadingSakhis = true);
     try {
-      final items = await _sakhiApi.fetchSakhis();
+      final items = await _sakhiApi.fetchSakhis(
+        officeId: AuthSession.instance.officeId,
+      );
       setState(() {
         _sakhis = items.map<Map<String, String>>((item) {
           final statusEnum = item['statusEnum'];
@@ -313,6 +510,8 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
 
   void _resetFormTokens() {
     _formKey.currentState!.reset();
+    _sakhiMobileVerified = false;
+    _spouseMobileVerified = false;
     _sakhiNameController.clear();
     _dobController.clear();
     _mobileController.clear();
@@ -356,46 +555,6 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
         children: [
           _buildSakhiList(),
           _buildEnrollmentForm(),
-        ],
-      ),
-    );
-  }
-
-  void _editSakhi(Map<String, String> sakhi, int index) {
-    _sakhiNameController.text = sakhi['name'] ?? '';
-    _mobileController.text = sakhi['mobile'] ?? '';
-    _selectedOfficeId = _offices.firstWhere((o) => o['name'] == sakhi['branch'], orElse: () => {'id': _selectedOfficeId})['id'];
-    _tabController.animateTo(1);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Editing ${sakhi['name']}... (Submit to save updates)'), backgroundColor: AppTheme.primaryColor),
-    );
-  }
-
-  void _deleteSakhi(int index) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Sakhi'),
-        content: const Text('Are you sure you want to completely remove this Sakhi from your list?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _sakhis.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sakhi removed successfully.'), backgroundColor: Colors.red),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
         ],
       ),
     );
@@ -494,20 +653,6 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                       color: isPending ? Colors.orange[800] : Colors.green[800],
                     ),
                   ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _editSakhi(sakhi, index);
-                    } else if (value == 'delete') {
-                      _deleteSakhi(index);
-                    }
-                  },
-                  icon: const Icon(Icons.more_vert, color: AppTheme.textSecondary),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit')])),
-                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 8), Text('Delete', style: TextStyle(color: Colors.red))])),
-                  ],
                 ),
               ],
             ),
@@ -617,7 +762,13 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                     
                     const SizedBox(height: 12),
                     _buildHeader('Contact Details'),
-                    _buildTextField(label: 'Mobile Number', controller: _mobileController, icon: Icons.phone_android, isNumber: true, maxLength: 10),
+                    _buildMobileVerifyField(
+                      label: 'Mobile Number',
+                      controller: _mobileController,
+                      verified: _sakhiMobileVerified,
+                      sending: _isSendingSakhiOtp,
+                      onVerify: () => _verifyMobile(isSpouse: false),
+                    ),
                     _buildTextField(label: 'Address', controller: _addressController, icon: Icons.location_on),
                     
                     const SizedBox(height: 12),
@@ -665,7 +816,13 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                     const SizedBox(height: 24),
                     _buildHeader('Family & Occupation'),
                     _buildTextField(label: 'Spouse Name', controller: _spouseNameController, icon: Icons.family_restroom),
-                    _buildTextField(label: 'Spouse Mobile', controller: _spouseMobileController, icon: Icons.phone, isNumber: true, maxLength: 10),
+                    _buildMobileVerifyField(
+                      label: 'Spouse Mobile',
+                      controller: _spouseMobileController,
+                      verified: _spouseMobileVerified,
+                      sending: _isSendingSpouseOtp,
+                      onVerify: () => _verifyMobile(isSpouse: true),
+                    ),
                     
                     // Occupation Dropdown
                     _buildDropdownField(

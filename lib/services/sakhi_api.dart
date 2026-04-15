@@ -5,8 +5,11 @@ class SakhiApi {
   final ApiClient _client;
   SakhiApi({ApiClient? client}) : _client = client ?? ApiClient.instance;
 
-  Future<List<dynamic>> fetchSakhis() async {
-    final decoded = await _client.get('/sakhi');
+  Future<List<dynamic>> fetchSakhis({int? officeId}) async {
+    final decoded = await _client.get(
+      '/sakhi',
+      query: officeId != null ? {'officeId': officeId} : null,
+    );
     if (decoded is Map && decoded['pageItems'] is List) {
       return decoded['pageItems'] as List;
     }
@@ -40,6 +43,26 @@ class SakhiApi {
 
   Future<void> uploadPan(String resourceId, File file) async {
     await _client.uploadFile('/sakhi/$resourceId/pan', file);
+  }
+
+  Future<void> sendOtp(String mobileNumber) async {
+    await _client.post('/ExternalApi/sendotp', body: {
+      'mobileNumber': mobileNumber,
+    });
+  }
+
+  Future<bool> verifyOtp(String mobileNumber, String otp) async {
+    final decoded = await _client.post('/ExternalApi/verifyotp', body: {
+      'mobileNumber': mobileNumber,
+      'otp': otp,
+    });
+    if (decoded is Map && decoded['verification'] != null) {
+      return decoded['verification']
+          .toString()
+          .toLowerCase()
+          .contains('success');
+    }
+    return false;
   }
 
   Future<bool> verifyPan(String panNumber) async {

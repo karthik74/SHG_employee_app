@@ -7,6 +7,7 @@ class AuthSession {
   String? _base64Token;
   String? _username;
   int? _userId;
+  int? _staffId;
   int? _officeId;
   String? _officeName;
   List<String> _permissions = const [];
@@ -15,6 +16,7 @@ class AuthSession {
   String? get base64Token => _base64Token;
   String? get username => _username;
   int? get userId => _userId;
+  int? get staffId => _staffId;
   int? get officeId => _officeId;
   String? get officeName => _officeName;
   List<String> get permissions => _permissions;
@@ -25,6 +27,7 @@ class AuthSession {
   static const _keyToken = 'auth_token';
   static const _keyUser = 'auth_user';
   static const _keyUserId = 'auth_user_id';
+  static const _keyStaffId = 'auth_staff_id';
   static const _keyOfficeId = 'auth_office_id';
   static const _keyOfficeName = 'auth_office_name';
   static const _keyPerms = 'auth_perms';
@@ -34,6 +37,7 @@ class AuthSession {
     _base64Token = prefs.getString(_keyToken);
     _username = prefs.getString(_keyUser);
     _userId = prefs.getInt(_keyUserId);
+    _staffId = prefs.getInt(_keyStaffId);
     _officeId = prefs.getInt(_keyOfficeId);
     _officeName = prefs.getString(_keyOfficeName);
     _permissions = prefs.getStringList(_keyPerms) ?? const [];
@@ -43,6 +47,8 @@ class AuthSession {
     _base64Token = response['base64EncodedAuthenticationKey']?.toString();
     _username = response['username']?.toString();
     _userId = response['userId'] is int ? response['userId'] as int : null;
+    final staff = response['staffId'] ?? response['staff']?['id'];
+    _staffId = staff is int ? staff : (staff is String ? int.tryParse(staff) : null);
     _officeId = response['officeId'] is int ? response['officeId'] as int : null;
     _officeName = response['officeName']?.toString();
     final perms = response['permissions'];
@@ -56,6 +62,7 @@ class AuthSession {
     if (_base64Token != null) await prefs.setString(_keyToken, _base64Token!);
     if (_username != null) await prefs.setString(_keyUser, _username!);
     if (_userId != null) await prefs.setInt(_keyUserId, _userId!);
+    if (_staffId != null) await prefs.setInt(_keyStaffId, _staffId!);
     if (_officeId != null) await prefs.setInt(_keyOfficeId, _officeId!);
     if (_officeName != null) await prefs.setString(_keyOfficeName, _officeName!);
     await prefs.setStringList(_keyPerms, _permissions);
@@ -65,6 +72,7 @@ class AuthSession {
     _base64Token = null;
     _username = null;
     _userId = null;
+    _staffId = null;
     _officeId = null;
     _officeName = null;
     _permissions = const [];
