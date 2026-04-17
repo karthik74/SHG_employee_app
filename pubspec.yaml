@@ -1,7 +1,7 @@
 name: employee_app
-description: SHG Employee Collection App for microfinance field officers.
+description: NavaJyothi Employee App for microfinance field officers.
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -37,11 +37,22 @@ dependencies:
 
   cupertino_icons: ^1.0.6
   http_parser: ^4.1.2
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/logo.png"
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo.png"
 
 flutter:
   uses-material-design: true
@@ -62,4 +73,5 @@ flutter:
 
   assets:
     - .env
-  #   - assets/images/
+    - assets/logo.png
+    - assets/logo.webp

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/village_api.dart';
+import '../services/auth_session.dart';
 import '../theme/app_theme.dart';
 
 class VillageScreen extends StatefulWidget {
@@ -26,7 +27,7 @@ class _VillageScreenState extends State<VillageScreen> {
   Future<void> _fetchVillages() async {
     setState(() => _isLoading = true);
     try {
-      final items = await _villageApi.fetchVillages();
+      final items = await _villageApi.fetchVillages(officeId: AuthSession.instance.officeId);
 
       Map<String, String> mapItem(dynamic item) {
         final pop = item['totalPopulation']?.toString()

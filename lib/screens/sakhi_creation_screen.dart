@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/sakhi_api.dart';
+import '../services/api_client.dart';
 import '../services/auth_session.dart';
 import '../theme/app_theme.dart';
 
@@ -34,20 +38,27 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
   final _spouseMobileController = TextEditingController();
 
   int? _selectedOfficeId;
+  String? _selectedOfficeName;
+  int? _selectedGramPanchayatId;
   int? _occupationId;
   int? _spouseOccupationId;
 
-  List<dynamic> _offices = [];
+  List<dynamic> _gramPanchayats = [];
   List<dynamic> _professions = [];
 
   bool _isLoading = false;
-  bool _isPanVerifying = false;
-  String _panStatus = "";
+
+  bool _isAadharVerifying = false;
+  bool _aadharLinkSent = false;
+  bool _isFetchingAadhar = false;
+  bool _aadharFetched = false;
+  String? _aadharReferenceId;
+  String? _aadharTransactionId;
+  Timer? _aadharPollTimer;
+  int _aadharPollAttempts = 0;
 
   bool _sakhiMobileVerified = false;
-  bool _spouseMobileVerified = false;
   bool _isSendingSakhiOtp = false;
-  bool _isSendingSpouseOtp = false;
 
   // Image files
   File? _sakhiPhoto;
@@ -66,14 +77,10 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
     _mobileController.addListener(() {
       if (_sakhiMobileVerified) setState(() => _sakhiMobileVerified = false);
     });
-    _spouseMobileController.addListener(() {
-      if (_spouseMobileVerified) setState(() => _spouseMobileVerified = false);
-    });
   }
 
-  Future<void> _verifyMobile({required bool isSpouse}) async {
-    final controller = isSpouse ? _spouseMobileController : _mobileController;
-    final number = controller.text.trim();
+  Future<void> _verifyMobile() async {
+    final number = _mobileController.text.trim();
     if (number.length != 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter a valid 10-digit mobile number')),
@@ -81,13 +88,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
       return;
     }
 
-    setState(() {
-      if (isSpouse) {
-        _isSendingSpouseOtp = true;
-      } else {
-        _isSendingSakhiOtp = true;
-      }
-    });
+    setState(() => _isSendingSakhiOtp = true);
 
     try {
       await _sakhiApi.sendOtp(number);
@@ -96,18 +97,12 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to send OTP: $e')),
       );
-      setState(() {
-        _isSendingSakhiOtp = false;
-        _isSendingSpouseOtp = false;
-      });
+      setState(() => _isSendingSakhiOtp = false);
       return;
     }
 
     if (!mounted) return;
-    setState(() {
-      _isSendingSakhiOtp = false;
-      _isSendingSpouseOtp = false;
-    });
+    setState(() => _isSendingSakhiOtp = false);
 
     final otpController = TextEditingController();
     final verified = await showDialog<bool>(
@@ -118,7 +113,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text('Verify ${isSpouse ? "Spouse" : "Sakhi"} Mobile'),
+            title: const Text('Verify Sakhi Mobile'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,13 +176,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
 
     if (!mounted) return;
     if (verified == true) {
-      setState(() {
-        if (isSpouse) {
-          _spouseMobileVerified = true;
-        } else {
-          _sakhiMobileVerified = true;
-        }
-      });
+      setState(() => _sakhiMobileVerified = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Mobile verified successfully'), backgroundColor: Colors.green),
       );
@@ -256,6 +245,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
 
   @override
   void dispose() {
+    _aadharPollTimer?.cancel();
     _tabController.dispose();
     _sakhiNameController.dispose();
     _dobController.dispose();
@@ -284,6 +274,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
           
           return {
             'id': item['resourceId']?.toString() ?? item['id']?.toString() ?? 'N/A',
+            'code': item['sakhiCode']?.toString() ?? '-',
             'name': item['sakhiName']?.toString() ?? 'Unknown',
             'mobile': item['mobileNumber']?.toString() ?? 'N/A',
             'branch': item['officeName']?.toString() ?? item['branchName']?.toString() ?? 'Main Branch',
@@ -293,31 +284,46 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
       });
     } catch (e) {
       debugPrint('Error loading sakhis: $e');
-      if (_sakhis.isEmpty && mounted) {
-        setState(() {
-          _sakhis = [
-            {'id': 'SK-1001', 'name': 'Aarti Patel', 'mobile': '9876543210', 'branch': 'Main Branch', 'status': 'Active', 'photo': 'assets/images/sakhi1.jpg'},
-            {'id': 'SK-1002', 'name': 'Pooja Verma', 'mobile': '8765432109', 'branch': 'North Branch', 'status': 'Active', 'photo': 'assets/images/sakhi2.jpg'},
-          ];
-        });
-      }
     } finally {
       if (mounted) setState(() => _isLoadingSakhis = false);
     }
   }
 
   Future<void> _loadTemplateData() async {
+    final userOfficeId = AuthSession.instance.officeId;
+    final userOfficeName = AuthSession.instance.officeName;
+    if (mounted && userOfficeId != null) {
+      setState(() {
+        _selectedOfficeId = userOfficeId;
+        _selectedOfficeName = userOfficeName;
+      });
+    }
+
     try {
-      final offices = await _sakhiApi.fetchOffices();
+      if (userOfficeId != null) {
+        final office = await _sakhiApi.fetchOfficeById(userOfficeId);
+        if (mounted && office.isNotEmpty) {
+          setState(() {
+            _selectedOfficeId = (office['id'] is int) ? office['id'] as int : userOfficeId;
+            _selectedOfficeName = office['name']?.toString() ?? userOfficeName;
+          });
+        }
+
+        final panchayats = await _sakhiApi.fetchGramPanchayats(userOfficeId);
+        if (mounted) {
+          setState(() {
+            _gramPanchayats = panchayats;
+            if (panchayats.isNotEmpty) {
+              _selectedGramPanchayatId = panchayats[0]['id'] is int ? panchayats[0]['id'] as int : null;
+            }
+          });
+        }
+      }
+
       final template = await _sakhiApi.fetchSakhiTemplate();
-      
       if (mounted) {
         setState(() {
-          _offices = offices;
           _professions = template['professionOptions'] ?? [];
-          
-          // Set defaults if available
-          if (_offices.isNotEmpty) _selectedOfficeId = _offices[0]['id'];
           if (_professions.isNotEmpty) {
             _occupationId = _professions[0]['id'];
             _spouseOccupationId = _professions[0]['id'];
@@ -377,53 +383,180 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
     );
   }
 
-  Future<void> _verifyPanCard() async {
-    if (_panNoController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter PAN Number first')));
+  Future<void> _verifyAadhar() async {
+    final aadhar = _aadharNoController.text.trim();
+    if (aadhar.length != 12) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid 12-digit Aadhaar number')),
+      );
       return;
     }
-    setState(() {
-      _isPanVerifying = true;
-      _panStatus = "";
+    setState(() => _isAadharVerifying = true);
+    try {
+      final resp = await _sakhiApi.generateAadharLink(aadhar);
+      if (!mounted) return;
+      final status = resp['status']?.toString().toLowerCase();
+      final result = resp['result'];
+      final link = result is Map ? result['link']?.toString() : null;
+      final refId = resp['reference_id']?.toString();
+      final txnId = resp['transaction_id']?.toString();
+
+      if (status == 'success' && link != null && link.isNotEmpty) {
+        final uri = Uri.parse(link);
+        bool launched = false;
+        try {
+          launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } catch (_) {
+          launched = false;
+        }
+        if (!launched) {
+          try {
+            launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+          } catch (_) {
+            launched = false;
+          }
+        }
+        if (!launched) {
+          try {
+            launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+          } catch (_) {
+            launched = false;
+          }
+        }
+        if (!mounted) return;
+        setState(() {
+          _aadharLinkSent = launched;
+          _aadharReferenceId = refId;
+          _aadharTransactionId = txnId;
+          _aadharFetched = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(launched
+                ? 'Verify in browser. Auto-fetching details…'
+                : 'Could not open link'),
+            backgroundColor: launched ? Colors.green : Colors.red,
+          ),
+        );
+        if (launched && refId != null && txnId != null) {
+          _startAadharAutoFetch();
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(resp['message']?.toString() ?? 'Failed to generate link')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Aadhaar verification failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isAadharVerifying = false);
+    }
+  }
+
+  void _startAadharAutoFetch() {
+    _aadharPollTimer?.cancel();
+    _aadharPollAttempts = 0;
+    _aadharPollTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (!mounted || _aadharFetched) {
+        timer.cancel();
+        return;
+      }
+      _aadharPollAttempts++;
+      if (_aadharPollAttempts > 36) {
+        timer.cancel();
+        return;
+      }
+      await _fetchAadharDetails(silent: true);
     });
+  }
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+  Future<void> _fetchAadharDetails({bool silent = false}) async {
+    final refId = _aadharReferenceId;
+    final txnId = _aadharTransactionId;
+    if (refId == null || txnId == null) {
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Generate verification link first')),
+        );
+      }
+      return;
+    }
+    if (!silent) setState(() => _isFetchingAadhar = true);
+    try {
+      final resp = await _sakhiApi.downloadAadhar(referenceId: refId, transactionId: txnId);
+      if (!mounted) return;
+      final validated = resp['result'] is Map ? resp['result']['validated_data'] : null;
+      final data = validated is Map ? validated['result'] : null;
+      final innerStatus = data is Map ? data['status']?.toString().toUpperCase() : null;
 
-    bool isApproved = Random().nextBool(); 
+      if (data is Map && innerStatus == 'SUCCESS') {
+        _applyAadharData(data);
+        _aadharPollTimer?.cancel();
+        setState(() {
+          _aadharFetched = true;
+          _isFetchingAadhar = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aadhaar details fetched'), backgroundColor: Colors.green),
+        );
+      } else {
+        if (!silent) {
+          setState(() => _isFetchingAadhar = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resp['message']?.toString() ?? 'Details not ready yet')),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      if (!silent) {
+        setState(() => _isFetchingAadhar = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fetch failed: $e')),
+        );
+      }
+    }
+  }
 
+  void _applyAadharData(Map data) {
+    final name = data['name']?.toString();
+    final dob = data['dob']?.toString();
+    final address = data['address']?.toString();
     setState(() {
-      _isPanVerifying = false;
-      _panStatus = isApproved ? "APPROVED" : "NOT APPROVED";
+      if (name != null && name.isNotEmpty) _sakhiNameController.text = name;
+      if (dob != null && dob.isNotEmpty) _dobController.text = dob;
+      if (address != null && address.isNotEmpty) _addressController.text = address;
     });
+  }
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(isApproved ? Icons.check_circle_rounded : Icons.cancel_rounded, 
-                 color: isApproved ? Colors.green : Colors.red, size: 28),
-            const SizedBox(width: 8),
-            const Text('PAN Verification'),
-          ],
-        ),
-        content: Text(
-          isApproved 
-              ? 'Success! The PAN Card details have been verified and permanently CB Approved.'
-              : 'Failed. The CB verification for this PAN Card was Not Approved. Please check the PAN image and number.',
-          style: const TextStyle(fontSize: 15),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
+  String _extractErrorMessage(Object e) {
+    if (e is ApiException) {
+      final body = e.body;
+      if (body != null && body.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(body);
+          if (decoded is Map) {
+            final errors = decoded['errors'];
+            if (errors is List && errors.isNotEmpty) {
+              final first = errors.first;
+              if (first is Map) {
+                final msg = first['defaultUserMessage']?.toString()
+                    ?? first['developerMessage']?.toString();
+                if (msg != null && msg.isNotEmpty) return msg;
+              }
+            }
+            final top = decoded['defaultUserMessage']?.toString()
+                ?? decoded['developerMessage']?.toString();
+            if (top != null && top.isNotEmpty) return top;
+          }
+        } catch (_) {}
+      }
+      return e.message;
+    }
+    return e.toString();
   }
 
   Future<void> _submitForm() async {
@@ -437,6 +570,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
 
     final payload = {
       "officeId": _selectedOfficeId,
+      "gramPanchayatId": _selectedGramPanchayatId,
       "sakhiName": _sakhiNameController.text.trim(),
       "dob": _dobController.text.trim(),
       "mobileNumber": _mobileController.text.trim(),
@@ -476,33 +610,20 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
       );
 
       setState(() {
-        _sakhis.insert(0, {
-          'id': resourceId,
-          'name': _sakhiNameController.text.trim(),
-          'mobile': _mobileController.text.trim(),
-          'branch': _offices.firstWhere((o) => o['id'] == _selectedOfficeId, orElse: () => {'name': 'Unknown'})['name'] ?? 'N/A',
-          'status': 'Active',
-        });
         _tabController.animateTo(0);
         _resetFormTokens();
       });
+      await _fetchSakhis();
     } catch (e) {
       if (!mounted) return;
+      final message = _extractErrorMessage(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Simulated Success (Offline Module) - Sakhi Added!', style: const TextStyle(color: Colors.white)), backgroundColor: AppTheme.secondaryColor),
+        SnackBar(
+          content: Text(message, style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red.shade700,
+          duration: const Duration(seconds: 5),
+        ),
       );
-      // Fallback
-      setState(() {
-        _sakhis.insert(0, {
-          'id': 'SK-${Random().nextInt(9000)+1000}',
-          'name': _sakhiNameController.text.trim(),
-          'mobile': _mobileController.text.trim(),
-          'branch': _offices.firstWhere((o) => o['id'] == _selectedOfficeId, orElse: () => {'name': 'Unknown'})['name'] ?? 'N/A',
-          'status': 'Pending Sync',
-        });
-        _tabController.animateTo(0);
-        _resetFormTokens();
-      });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -511,7 +632,6 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
   void _resetFormTokens() {
     _formKey.currentState!.reset();
     _sakhiMobileVerified = false;
-    _spouseMobileVerified = false;
     _sakhiNameController.clear();
     _dobController.clear();
     _mobileController.clear();
@@ -524,7 +644,11 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
     _sakhiPhoto = null;
     _aadharPhoto = null;
     _panPhoto = null;
-    _panStatus = "";
+    _aadharLinkSent = false;
+    _aadharFetched = false;
+    _aadharReferenceId = null;
+    _aadharTransactionId = null;
+    _aadharPollTimer?.cancel();
   }
 
   @override
@@ -619,13 +743,15 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                       Text(
                         sakhi['name']!,
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppTheme.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           const Icon(Icons.badge, size: 12, color: AppTheme.textSecondary),
                           const SizedBox(width: 4),
-                          Text('${sakhi['id']} • ${sakhi['branch']}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                          Text(sakhi['code'] ?? '-', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -703,6 +829,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                 key: _formKey,
                 child: Column(
                   children: [
+                    _buildAadharVerificationSection(),
                     _buildHeader('Basic Information'),
                     
                     // Sakhi Photo Upload
@@ -741,16 +868,35 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
 
                     _buildTextField(label: 'Sakhi Name', controller: _sakhiNameController, icon: Icons.person),
                     
-                    // Office Dropdown
+                    // Office (from logged-in user)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: TextFormField(
+                        enabled: false,
+                        controller: TextEditingController(text: _selectedOfficeName ?? 'Loading office…'),
+                        decoration: InputDecoration(
+                          labelText: 'Taluk',
+                          prefixIcon: Icon(Icons.store, color: Colors.grey[500], size: 20),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[200]!)),
+                          disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[200]!)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ),
+
+                    // Gram Panchayat Dropdown
                     _buildDropdownField(
-                      label: 'Office / Branch',
-                      icon: Icons.store,
-                      value: _selectedOfficeId,
-                      items: _offices.map((o) => DropdownMenuItem(
-                        value: o['id'] as int,
-                        child: Text(o['name']?.toString() ?? 'N/A'),
+                      label: 'Gram Panchayat',
+                      icon: Icons.location_city,
+                      value: _selectedGramPanchayatId,
+                      items: _gramPanchayats.map((gp) => DropdownMenuItem(
+                        value: gp['id'] as int,
+                        child: Text(gp['name']?.toString() ?? 'N/A'),
                       )).toList(),
-                      onChanged: (val) => setState(() => _selectedOfficeId = val),
+                      onChanged: (val) => setState(() => _selectedGramPanchayatId = val),
                     ),
 
                     GestureDetector(
@@ -767,62 +913,45 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
                       controller: _mobileController,
                       verified: _sakhiMobileVerified,
                       sending: _isSendingSakhiOtp,
-                      onVerify: () => _verifyMobile(isSpouse: false),
+                      onVerify: _verifyMobile,
                     ),
                     _buildTextField(label: 'Address', controller: _addressController, icon: Icons.location_on),
                     
                     const SizedBox(height: 12),
                     _buildHeader('Identification Documents'),
                     
-                    // Aadhar Card Section
-                    _buildTextField(label: 'Aadhar Number', controller: _aadharNoController, icon: Icons.badge, isNumber: true, maxLength: 12),
+                    // Aadhar Card Image
                     _buildImageUploader(
-                      title: 'Upload Aadhar Card Image', 
-                      file: _aadharPhoto, 
+                      title: 'Upload Aadhar Card Image',
+                      file: _aadharPhoto,
                       onPick: () => _showImageSourceDialog((f) => setState(() => _aadharPhoto = f))
                     ),
                     const SizedBox(height: 16),
 
                     // PAN Card Section
-                    _buildTextField(label: 'PAN Number', controller: _panNoController, icon: Icons.credit_card),
+                    _buildTextField(
+                      label: 'PAN Number',
+                      controller: _panNoController,
+                      icon: Icons.credit_card,
+                      uppercase: true,
+                      maxLength: 10,
+                      validator: (value) {
+                        final v = value?.trim() ?? '';
+                        if (v.isEmpty) return 'This field is required';
+                        if (v.length != 10) return 'PAN must be 10 characters';
+                        if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$').hasMatch(v)) return 'Invalid PAN format';
+                        return null;
+                      },
+                    ),
                     _buildImageUploader(
                       title: 'Upload PAN Card Image', 
                       file: _panPhoto, 
                       onPick: () => _showImageSourceDialog((f) => setState(() => _panPhoto = f))
                     ),
-                    const SizedBox(height: 16),
-
-                    // PAN API Verification Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: _isPanVerifying ? null : _verifyPanCard,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _panStatus == "APPROVED" ? Colors.green : Colors.blueGrey,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: _isPanVerifying 
-                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : Icon(_panStatus == "APPROVED" ? Icons.verified : Icons.admin_panel_settings),
-                        label: Text(
-                          _panStatus.isEmpty ? 'Verify PAN (CB API)' : 'PAN Status: $_panStatus',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                    
                     const SizedBox(height: 24),
                     _buildHeader('Family & Occupation'),
                     _buildTextField(label: 'Spouse Name', controller: _spouseNameController, icon: Icons.family_restroom),
-                    _buildMobileVerifyField(
-                      label: 'Spouse Mobile',
-                      controller: _spouseMobileController,
-                      verified: _spouseMobileVerified,
-                      sending: _isSendingSpouseOtp,
-                      onVerify: () => _verifyMobile(isSpouse: true),
-                    ),
+                    _buildTextField(label: 'Spouse Mobile', controller: _spouseMobileController, icon: Icons.phone_android, isNumber: true, maxLength: 10),
                     
                     // Occupation Dropdown
                     _buildDropdownField(
@@ -873,6 +1002,127 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAadharVerificationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHeader('Aadhaar Verification'),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _aadharNoController,
+                keyboardType: TextInputType.number,
+                maxLength: 12,
+                onChanged: (_) {
+                  if (_aadharLinkSent || _aadharFetched) {
+                    setState(() {
+                      _aadharLinkSent = false;
+                      _aadharFetched = false;
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  labelText: 'Aadhar Number',
+                  counterText: '',
+                  prefixIcon: Icon(Icons.badge, color: Colors.grey[500], size: 20),
+                  suffixIcon: _aadharFetched
+                      ? const Icon(Icons.verified, color: Colors.green)
+                      : null,
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[200]!)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) return 'Required';
+                  if (value.trim().length != 12) return 'Must be 12 digits';
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isAadharVerifying ? null : _verifyAadhar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _aadharLinkSent ? Colors.green : AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                ),
+                child: _isAadharVerifying
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(_aadharLinkSent ? 'Re-send' : 'Verify', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+        if (_aadharLinkSent && !_aadharFetched) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: _isFetchingAadhar || _aadharPollTimer?.isActive == true
+                      ? const CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryColor)
+                      : const Icon(Icons.hourglass_top, size: 18, color: AppTheme.primaryColor),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Complete verification in the browser. Details will auto-fill once available.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isFetchingAadhar ? null : () => _fetchAadharDetails(silent: false),
+                  child: const Text('Fetch Now'),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_aadharFetched) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 18),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Aadhaar verified — details auto-filled below.',
+                    style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -932,7 +1182,9 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
     required TextEditingController controller,
     required IconData icon,
     bool isNumber = false,
+    bool uppercase = false,
     int? maxLength,
+    String? Function(String?)? validator,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -940,6 +1192,10 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
         controller: controller,
         keyboardType: isNumber ? TextInputType.number : TextInputType.text,
         maxLength: maxLength,
+        textCapitalization: uppercase ? TextCapitalization.characters : TextCapitalization.none,
+        inputFormatters: uppercase
+            ? [TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toUpperCase()))]
+            : null,
         decoration: InputDecoration(
           labelText: label,
           counterText: "",
@@ -951,7 +1207,7 @@ class _SakhiCreationScreenState extends State<SakhiCreationScreen> with SingleTi
           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.primaryColor, width: 1.5)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
-        validator: (value) {
+        validator: validator ?? (value) {
           if (value == null || value.trim().isEmpty) return 'This field is required';
           return null;
         },

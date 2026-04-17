@@ -4,12 +4,14 @@ class VillageApi {
   final ApiClient _client;
   VillageApi({ApiClient? client}) : _client = client ?? ApiClient.instance;
 
-  Future<List<dynamic>> fetchVillages({int offset = 0, int limit = 10}) async {
-    final decoded = await _client.get('/villages', query: {
+  Future<List<dynamic>> fetchVillages({int? officeId, int offset = 0, int limit = 10}) async {
+    final query = <String, dynamic>{
       'offset': offset,
       'limit': limit,
       'paged': true,
-    });
+    };
+    if (officeId != null) query['officeId'] = officeId;
+    final decoded = await _client.get('/villages', query: query);
     if (decoded is Map && decoded['pageItems'] is List) {
       return decoded['pageItems'] as List;
     }

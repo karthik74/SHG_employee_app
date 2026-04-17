@@ -487,6 +487,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       },
     );
   }
+  bool _isLoanClosed(dynamic a) {
     if (a is! Map) return false;
     final status = a['status'];
     if (status is Map) {

@@ -6,7 +6,6 @@ import 'config/env_config.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/survey_hub_screen.dart';
 import 'screens/groups_screen.dart';
-import 'screens/collection_screen.dart';
 import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
@@ -47,7 +46,7 @@ class EmployeeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SHG Employee App',
+      title: 'NavaJyothi Employee App',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: AuthSession.instance.isLoggedIn
@@ -72,18 +71,42 @@ class _MainNavigationState extends State<MainNavigation> {
     SakhiCreationScreen(),
     SurveyHubScreen(),
     GroupsScreen(),
-    CollectionScreen(),
     ProfileScreen(),
   ];
 
-  final List<NavigationItem> _navItems = [
-    NavigationItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
-    NavigationItem(icon: Icons.person_add_alt_1_rounded, label: 'Create Sakhi'),
-    NavigationItem(icon: Icons.assignment_rounded, label: 'Survey'),
-    NavigationItem(icon: Icons.groups_rounded, label: 'Groups'),
-    NavigationItem(icon: Icons.payments_rounded, label: 'Collect'),
-    NavigationItem(icon: Icons.person_rounded, label: 'Profile'),
+  static const List<NavigationItem> _navItems = [
+    NavigationItem(
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard_rounded,
+      label: 'Dashboard',
+    ),
+    NavigationItem(
+      icon: Icons.person_add_alt_1_outlined,
+      activeIcon: Icons.person_add_alt_1_rounded,
+      label: 'Sakhi',
+    ),
+    NavigationItem(
+      icon: Icons.assignment_outlined,
+      activeIcon: Icons.assignment_rounded,
+      label: 'Survey',
+    ),
+    NavigationItem(
+      icon: Icons.groups_outlined,
+      activeIcon: Icons.groups_rounded,
+      label: 'Groups',
+    ),
+    NavigationItem(
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+      label: 'Profile',
+    ),
   ];
+
+  void _onItemTap(int index) {
+    if (_currentIndex == index) return;
+    HapticFeedback.selectionClick();
+    setState(() => _currentIndex = index);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,84 +115,10 @@ class _MainNavigationState extends State<MainNavigation> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final scale = (width / 375).clamp(1.0, 1.6);
-              final iconSize = 22.0 * scale;
-              final fontSize = 10.0 * scale;
-              final vPad = 10.0 * scale;
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: vPad),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(_navItems.length, (index) {
-                    final item = _navItems[index];
-                    final isSelected = _currentIndex == index;
-                    return Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(() => _currentIndex = index),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: EdgeInsets.symmetric(horizontal: 4 * scale),
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 8 * scale, vertical: 8 * scale),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppTheme.primaryColor.withOpacity(0.12)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                item.icon,
-                                color: isSelected
-                                    ? AppTheme.primaryColor
-                                    : Colors.grey[400],
-                                size: iconSize,
-                              ),
-                              SizedBox(height: 4 * scale),
-                              Text(
-                                item.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: fontSize,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? AppTheme.primaryColor
-                                      : Colors.grey[400],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              );
-            },
-          ),
-        ),
+      bottomNavigationBar: _BottomNavBar(
+        items: _navItems,
+        currentIndex: _currentIndex,
+        onTap: _onItemTap,
       ),
     );
   }
@@ -177,6 +126,179 @@ class _MainNavigationState extends State<MainNavigation> {
 
 class NavigationItem {
   final IconData icon;
+  final IconData activeIcon;
   final String label;
-  const NavigationItem({required this.icon, required this.label});
+  final int badge;
+  const NavigationItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    this.badge = 0,
+  });
 }
+
+class _BottomNavBar extends StatelessWidget {
+  const _BottomNavBar({
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  final List<NavigationItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 16,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 68,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (int i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _NavBarItem(
+                      item: items[i],
+                      selected: currentIndex == i,
+                      onTap: () => onTap(i),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavBarItem extends StatelessWidget {
+  const _NavBarItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NavigationItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const selectedColor = AppTheme.primaryColor;
+    final unselectedColor = Colors.grey.shade500;
+    final color = selected ? selectedColor : unselectedColor;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: item.label,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: selectedColor.withOpacity(0.08),
+        highlightColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: selected ? 44 : 32,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: selected ? selectedColor.withOpacity(0.12) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: _NavIcon(
+                  icon: selected ? item.activeIcon : item.icon,
+                  badge: item.badge,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                  letterSpacing: 0.2,
+                ),
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavIcon extends StatelessWidget {
+  const _NavIcon({required this.icon, required this.badge, required this.color});
+
+  final IconData icon;
+  final int badge;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(icon, color: color, size: 22);
+    if (badge <= 0) return iconWidget;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        iconWidget,
+        Positioned(
+          right: -6,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade600,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              badge > 99 ? '99+' : '$badge',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../services/gram_panchayat_api.dart';
+import '../services/auth_session.dart';
 import '../theme/app_theme.dart';
 
 class GramPanchayatScreen extends StatefulWidget {
@@ -11,68 +14,103 @@ class GramPanchayatScreen extends StatefulWidget {
 class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
   bool _showEnteredSurveys = true;
   final _formKey = GlobalKey<FormState>();
-  
-  final _numberOfVillagesController = TextEditingController();
-  final _villageNamesController = TextEditingController();
+
+  final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _noOfVillagesController = TextEditingController();
   final _populationController = TextEditingController();
-  final _distanceController = TextEditingController();
-  final _literacyRatioController = TextEditingController();
   final _mainCropController = TextEditingController();
 
   String? _networkFacility;
   String? _bankFacility;
+  bool _isActive = true;
+  bool _isSubmitting = false;
+  bool _isLoadingList = false;
 
   final List<String> _networkOptions = ['2G', '3G', '4G', '5G', 'No Network'];
-  final List<String> _bankOptions = ['Bank Branch', 'ATM Only', 'BC Agent', 'Post Office', 'No Facility'];
+  final List<String> _bankOptions = ['Yes', 'No', 'ATM Only', 'BC Agent'];
 
-  final List<Map<String, String>> _enteredSurveys = [
-    {
-      'id': 'GP-001',
-      'villages': 'Rampur, Laxmipur',
-      'population': '12500',
-      'date': '10 Apr 2026',
-      'status': 'Approved'
-    },
-    {
-      'id': 'GP-002',
-      'villages': 'Bhavanipur, Kamalpur, Sitapur',
-      'population': '24100',
-      'date': '12 Apr 2026',
-      'status': 'Pending Sync'
-    }
-  ];
+  List<dynamic> _entered = [];
+
+  final GramPanchayatApi _api = GramPanchayatApi();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchList();
+  }
 
   @override
   void dispose() {
-    _numberOfVillagesController.dispose();
-    _villageNamesController.dispose();
+    _nameController.dispose();
+    _codeController.dispose();
+    _noOfVillagesController.dispose();
     _populationController.dispose();
-    _distanceController.dispose();
-    _literacyRatioController.dispose();
     _mainCropController.dispose();
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-         _enteredSurveys.insert(0, {
-            'id': 'GP-00${_enteredSurveys.length + 1}',
-            'villages': _villageNamesController.text.trim(),
-            'population': _populationController.text.trim(),
-            'date': 'Today',
-            'status': 'Pending Sync'
-         });
-         _showEnteredSurveys = true;
-      });
-      
+  Future<void> _fetchList() async {
+    final officeId = AuthSession.instance.officeId;
+    setState(() => _isLoadingList = true);
+    try {
+      final items = await _api.fetchPanchayats(officeId: officeId);
+      if (mounted) setState(() => _entered = items);
+    } catch (e) {
+      debugPrint('Error loading panchayats: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingList = false);
+    }
+  }
+
+  void _resetForm() {
+    _formKey.currentState?.reset();
+    _nameController.clear();
+    _codeController.clear();
+    _noOfVillagesController.clear();
+    _populationController.clear();
+    _mainCropController.clear();
+    setState(() {
+      _networkFacility = null;
+      _bankFacility = null;
+      _isActive = true;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final officeId = AuthSession.instance.officeId;
+    if (officeId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No office linked to this user')),
+      );
+      return;
+    }
+
+    final payload = <String, dynamic>{
+      'officeId': officeId,
+      'name': _nameController.text.trim(),
+      'code': _codeController.text.trim(),
+      'isActive': _isActive,
+      'noOfVillages': _noOfVillagesController.text.trim(),
+      'totalPopulation': _populationController.text.trim(),
+      'networkFacility': _networkFacility,
+      'bankFacility': _bankFacility,
+      'mainCrop': _mainCropController.text.trim(),
+    };
+
+    setState(() => _isSubmitting = true);
+    try {
+      await _api.create(payload);
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
-            children: [
+          content: Row(
+            children: const [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Text('Gram Panchayat survey saved!'),
+              Text('Gram Panchayat saved'),
             ],
           ),
           backgroundColor: AppTheme.secondaryColor,
@@ -80,18 +118,17 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
-      
-      _formKey.currentState!.reset();
-      _numberOfVillagesController.clear();
-      _villageNamesController.clear();
-      _populationController.clear();
-      _distanceController.clear();
-      _literacyRatioController.clear();
-      _mainCropController.clear();
-      setState(() {
-        _networkFacility = null;
-        _bankFacility = null;
-      });
+
+      _resetForm();
+      setState(() => _showEnteredSurveys = true);
+      await _fetchList();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -102,7 +139,6 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
       body: Column(
         children: [
           const SizedBox(height: 16),
-          // Custom Segmented Toggle Control
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(4),
@@ -139,7 +175,10 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
                 ),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _showEnteredSurveys = false),
+                    onTap: () {
+                      _resetForm();
+                      setState(() => _showEnteredSurveys = false);
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
@@ -165,7 +204,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
               ],
             ),
           ),
-          
+
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -178,96 +217,113 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
   }
 
   Widget _buildEnteredList() {
-    if (_enteredSurveys.isEmpty) {
+    if (_isLoadingList) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor));
+    }
+    if (_entered.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.assignment_outlined, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text('No surveys entered yet.', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+            const Text('No Gram Panchayats entered yet.', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () => setState(() => _showEnteredSurveys = false),
+              onPressed: () {
+                _resetForm();
+                setState(() => _showEnteredSurveys = false);
+              },
               icon: const Icon(Icons.add),
-              label: const Text('Start First Survey'),
+              label: const Text('Add First Panchayat'),
             )
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      itemCount: _enteredSurveys.length,
-      itemBuilder: (context, index) {
-        final survey = _enteredSurveys[index];
-        final bool isPending = survey['status'] == 'Pending Sync';
-        
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                child: const Icon(Icons.maps_home_work_rounded, color: AppTheme.primaryColor, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Villages: ${survey['villages']}',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.tag, size: 12, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text('${survey['id']} • Expected Pop: ${survey['population']}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 12, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text('Surveyed: ${survey['date']}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      ],
-                    ),
-                  ],
+    return RefreshIndicator(
+      onRefresh: _fetchList,
+      color: AppTheme.primaryColor,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        itemCount: _entered.length,
+        itemBuilder: (context, index) {
+          final item = _entered[index] as Map;
+          final isActive = item['active'] == true || item['isActive'] == true;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  child: const Icon(Icons.maps_home_work_rounded, color: AppTheme.primaryColor, size: 28),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isPending ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  survey['status']!,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isPending ? Colors.orange[800] : Colors.green[800],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item['name']?.toString() ?? 'N/A',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppTheme.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.store, size: 12, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              item['officeName']?.toString() ?? '-',
+                              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.tag, size: 12, color: AppTheme.textSecondary),
+                          const SizedBox(width: 4),
+                          Text('ID: ${item['id'] ?? '-'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    isActive ? 'Active' : 'Inactive',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isActive ? Colors.green[800] : Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -285,48 +341,51 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
             color: AppTheme.primaryColor,
             children: [
               _buildFormField(
-                label: 'Number of Villages *',
-                hint: 'e.g. 5',
-                controller: _numberOfVillagesController,
-                keyboardType: TextInputType.number,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                label: 'Name *',
+                hint: 'e.g. Agadi',
+                controller: _nameController,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               _buildFormField(
-                label: 'Village Names *',
-                hint: 'Enter village names separated by comma',
-                controller: _villageNamesController,
-                maxLines: 2,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                label: 'Code *',
+                hint: 'e.g. AGD',
+                controller: _codeController,
+                uppercase: true,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              _buildFormField(
+                label: 'Number of Villages *',
+                hint: 'e.g. 12',
+                controller: _noOfVillagesController,
+                keyboardType: TextInputType.number,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               _buildFormField(
                 label: 'Total Population *',
-                hint: 'e.g. 12500',
+                hint: 'e.g. 25000',
                 controller: _populationController,
                 keyboardType: TextInputType.number,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Active', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                value: _isActive,
+                activeColor: AppTheme.primaryColor,
+                onChanged: (v) => setState(() => _isActive = v),
               ),
             ],
           ),
           const SizedBox(height: 16),
           _buildSectionCard(
-            title: 'Location & Connectivity',
+            title: 'Connectivity & Economy',
             icon: Icons.location_on_rounded,
             color: AppTheme.accentColor,
             children: [
-              _buildFormField(
-                label: 'Distance from Panchayat HQ (km) *',
-                hint: 'e.g. 12',
-                controller: _distanceController,
-                keyboardType: TextInputType.number,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                suffix: const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('km', style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(height: 16),
               _buildDropdown(
                 label: 'Network Facility *',
                 hint: 'Select network type',
@@ -342,36 +401,12 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
                 value: _bankFacility,
                 onChanged: (v) => setState(() => _bankFacility = v),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildSectionCard(
-            title: 'Demographics & Agriculture',
-            icon: Icons.people_outline_rounded,
-            color: AppTheme.secondaryColor,
-            children: [
-              _buildFormField(
-                label: 'Literacy Ratio (%) *',
-                hint: 'e.g. 68',
-                controller: _literacyRatioController,
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  final n = double.tryParse(v);
-                  if (n == null || n < 0 || n > 100) return 'Enter a valid percentage (0–100)';
-                  return null;
-                },
-                suffix: const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('%', style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w600)),
-                ),
-              ),
               const SizedBox(height: 16),
               _buildFormField(
                 label: 'Main Crop *',
-                hint: 'e.g. Wheat, Rice, Sugarcane',
+                hint: 'e.g. Paddy',
                 controller: _mainCropController,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
               ),
             ],
           ),
@@ -380,9 +415,11 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton.icon(
-              onPressed: _submit,
-              icon: const Icon(Icons.save_rounded),
-              label: const Text('Save Survey'),
+              onPressed: _isSubmitting ? null : _submit,
+              icon: _isSubmitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.save_rounded),
+              label: const Text('Save Panchayat'),
             ),
           ),
           const SizedBox(height: 16),
@@ -405,7 +442,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Fill in the Gram Panchayat survey form. All fields marked * are required.',
+              'Enter Gram Panchayat details. Fields marked * are required.',
               style: TextStyle(fontSize: 12, color: AppTheme.primaryColor, fontWeight: FontWeight.w500),
             ),
           ),
@@ -458,6 +495,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
     String? Function(String?)? validator,
     Widget? suffix,
     int maxLines = 1,
+    bool uppercase = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,6 +507,10 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
           keyboardType: keyboardType,
           validator: validator,
           maxLines: maxLines,
+          textCapitalization: uppercase ? TextCapitalization.characters : TextCapitalization.none,
+          inputFormatters: uppercase
+              ? [TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toUpperCase()))]
+              : null,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),

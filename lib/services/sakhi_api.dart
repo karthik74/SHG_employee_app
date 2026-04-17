@@ -23,6 +23,17 @@ class SakhiApi {
     return const [];
   }
 
+  Future<Map<String, dynamic>> fetchOfficeById(int officeId) async {
+    final decoded = await _client.get('/offices/$officeId');
+    return (decoded is Map<String, dynamic>) ? decoded : <String, dynamic>{};
+  }
+
+  Future<List<dynamic>> fetchGramPanchayats(int officeId) async {
+    final decoded = await _client.get('/grampanchayats', query: {'officeId': officeId});
+    if (decoded is List) return decoded;
+    return const [];
+  }
+
   Future<Map<String, dynamic>> fetchSakhiTemplate() async {
     final decoded = await _client.get('/sakhi/template');
     return (decoded is Map<String, dynamic>) ? decoded : <String, dynamic>{};
@@ -71,5 +82,27 @@ class SakhiApi {
       return decoded['status'].toString().toUpperCase() == 'APPROVED';
     }
     return false;
+  }
+
+  Future<Map<String, dynamic>> generateAadharLink(String aadharNumber) async {
+    final decoded = await _client.post(
+      '/goldloans/aadharlink',
+      body: {'aadharNumber': aadharNumber},
+    );
+    return (decoded is Map<String, dynamic>) ? decoded : <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> downloadAadhar({
+    required String referenceId,
+    required String transactionId,
+  }) async {
+    final decoded = await _client.post(
+      '/goldloans/downloadaadhar',
+      body: {
+        'reference_id': referenceId,
+        'transaction_id': transactionId,
+      },
+    );
+    return (decoded is Map<String, dynamic>) ? decoded : <String, dynamic>{};
   }
 }

@@ -88,20 +88,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.lock_person_rounded,
-                        size: 64,
-                        color: Colors.white,
+                      child: Image.asset(
+                        'assets/logo.png',
+                        width: 80,
+                        height: 80,
                       ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'SHG Employee App',
+                      'NavaJyothi App',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
