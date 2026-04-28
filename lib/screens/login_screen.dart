@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/login_api.dart';
@@ -42,13 +43,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on ApiException catch (e) {
       if (!mounted) return;
+      final serverMessage = _extractErrorMessage(e);
+      final text = e.statusCode == 401 && serverMessage == null
+          ? 'Invalid username or password'
+          : serverMessage ?? 'Login failed: ${e.message}';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.statusCode == 401
-              ? 'Invalid username or password'
-              : 'Login failed: ${e.message}'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(text), backgroundColor: Colors.red),
       );
     } catch (e) {
       if (!mounted) return;
@@ -58,6 +58,29 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String? _extractErrorMessage(ApiException e) {
+    final body = e.body;
+    if (body == null || body.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final errors = decoded['errors'];
+        if (errors is List && errors.isNotEmpty) {
+          final first = errors.first;
+          if (first is Map) {
+            final msg = first['defaultUserMessage']?.toString()
+                ?? first['developerMessage']?.toString();
+            if (msg != null && msg.isNotEmpty) return msg;
+          }
+        }
+        final top = decoded['defaultUserMessage']?.toString()
+            ?? decoded['developerMessage']?.toString();
+        if (top != null && top.isNotEmpty) return top;
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
@@ -114,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       'Sign in with your credentials',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha:0.8),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -132,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withValues(alpha:0.08),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),

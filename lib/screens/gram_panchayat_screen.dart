@@ -157,7 +157,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
                         color: _showEnteredSurveys ? Colors.white : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: _showEnteredSurveys ? [
-                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                          BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 4, offset: const Offset(0, 2))
                         ] : [],
                       ),
                       alignment: Alignment.center,
@@ -185,7 +185,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
                         color: !_showEnteredSurveys ? Colors.white : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: !_showEnteredSurveys ? [
-                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                          BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 4, offset: const Offset(0, 2))
                         ] : [],
                       ),
                       alignment: Alignment.center,
@@ -258,13 +258,13 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 10, offset: const Offset(0, 4))],
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  backgroundColor: AppTheme.primaryColor.withValues(alpha:0.1),
                   child: const Icon(Icons.maps_home_work_rounded, color: AppTheme.primaryColor, size: 28),
                 ),
                 const SizedBox(width: 14),
@@ -307,7 +307,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                    color: isActive ? Colors.green.withValues(alpha:0.1) : Colors.grey.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
@@ -432,9 +432,9 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.05),
+        color: AppTheme.primaryColor.withValues(alpha:0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha:0.2)),
       ),
       child: Row(
         children: [
@@ -462,7 +462,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,7 +471,7 @@ class _GramPanchayatScreenState extends State<GramPanchayatScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
                 child: Icon(icon, color: color, size: 18),
               ),
               const SizedBox(width: 10),

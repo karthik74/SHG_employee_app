@@ -40,7 +40,12 @@ class ApiClient {
     return headers;
   }
 
-  Uri _buildUri(String path, [Map<String, dynamic>? query]) {
+  Uri _buildUri(String path, [Map<String, dynamic>? query]) =>
+      buildUriForTesting(path, query);
+
+  /// Test hook for [_buildUri]. Do not call from production code.
+  @visibleForTesting
+  static Uri buildUriForTesting(String path, [Map<String, dynamic>? query]) {
     final base = EnvConfig.apiBaseUrl.replaceAll(RegExp(r'/$'), '');
     final cleanPath = path.startsWith('/') ? path : '/$path';
     final qp = query?.map((k, v) => MapEntry(k, v.toString()));
@@ -68,6 +73,51 @@ class ApiClient {
     return masked;
   }
 
+  static const Set<String> _redactedKeys = {
+    'password',
+    'pin',
+    'otp',
+    'token',
+    'secret',
+    'authorization',
+    'base64encodedauthenticationkey',
+  };
+
+  Object? _redactBody(Object? body) => redactBodyForTesting(body);
+
+  /// Test hook for the body-redaction logic.
+  ///
+  /// Recursively walks [body] (which may be a [Map], [List], JSON-encoded
+  /// [String], or scalar) and replaces any value whose key (case-insensitively)
+  /// appears in [_redactedKeys] with the literal string `<redacted>`.
+  @visibleForTesting
+  static Object? redactBodyForTesting(Object? body) {
+    if (body is Map) {
+      final out = <dynamic, dynamic>{};
+      body.forEach((k, v) {
+        if (k is String && _redactedKeys.contains(k.toLowerCase())) {
+          out[k] = '<redacted>';
+        } else {
+          out[k] = redactBodyForTesting(v);
+        }
+      });
+      return out;
+    }
+    if (body is List) {
+      return body.map(redactBodyForTesting).toList();
+    }
+    if (body is String) {
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is Map || decoded is List) {
+          return redactBodyForTesting(decoded);
+        }
+      } catch (_) {}
+      return body;
+    }
+    return body;
+  }
+
   String _prettyBody(Object? body) {
     if (body == null) return '';
     try {
@@ -90,7 +140,7 @@ class ApiClient {
       ..writeln('│ headers: ${_maskHeaders(headers)}');
     if (body != null) {
       buf.writeln('│ body:');
-      for (final line in _prettyBody(body).split('\n')) {
+      for (final line in _prettyBody(_redactBody(body)).split('\n')) {
         buf.writeln('│   $line');
       }
     }
@@ -107,7 +157,7 @@ class ApiClient {
       ..writeln('│ headers: ${response.headers}');
     if (response.body.isNotEmpty) {
       buf.writeln('│ body:');
-      for (final line in _prettyBody(response.body).split('\n')) {
+      for (final line in _prettyBody(_redactBody(response.body)).split('\n')) {
         buf.writeln('│   $line');
       }
     }
@@ -226,7 +276,11 @@ class ApiClient {
     }
   }
 
-  dynamic _handle(http.Response response) {
+  dynamic _handle(http.Response response) => handleForTesting(response);
+
+  /// Test hook for [_handle].
+  @visibleForTesting
+  static dynamic handleForTesting(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
       try {

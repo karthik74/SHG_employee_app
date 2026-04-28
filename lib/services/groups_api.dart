@@ -21,6 +21,11 @@ class GroupsApi {
     return (decoded is Map<String, dynamic>) ? decoded : <String, dynamic>{};
   }
 
+  Future<List<dynamic>> fetchGsimAccounts(int groupId) async {
+    final decoded = await _client.get('/groups/$groupId/gsimaccounts');
+    return (decoded is List) ? decoded : const [];
+  }
+
   Future<Map<String, dynamic>> fetchGroupDetails(int groupId) async {
     final decoded = await _client.get(
       '/groups/$groupId',

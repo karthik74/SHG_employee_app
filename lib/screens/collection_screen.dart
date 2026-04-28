@@ -279,11 +279,11 @@ class _CollectionScreenState extends State<CollectionScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: isPaid
-            ? Border.all(color: AppTheme.secondaryColor.withOpacity(0.5))
+            ? Border.all(color: AppTheme.secondaryColor.withValues(alpha:0.5))
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha:0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -297,8 +297,8 @@ class _CollectionScreenState extends State<CollectionScreen>
               CircleAvatar(
                 radius: 18,
                 backgroundColor: isPaid
-                    ? AppTheme.secondaryColor.withOpacity(0.1)
-                    : AppTheme.primaryColor.withOpacity(0.1),
+                    ? AppTheme.secondaryColor.withValues(alpha:0.1)
+                    : AppTheme.primaryColor.withValues(alpha:0.1),
                 child: Text(
                   member['name'].toString()[0],
                   style: TextStyle(
@@ -336,7 +336,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppTheme.secondaryColor.withOpacity(0.1),
+                    color: AppTheme.secondaryColor.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
@@ -443,9 +443,9 @@ class _CollectionScreenState extends State<CollectionScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isRelevant ? AppTheme.primaryColor.withOpacity(0.05) : AppTheme.bgColor,
+        color: isRelevant ? AppTheme.primaryColor.withValues(alpha:0.05) : AppTheme.bgColor,
         borderRadius: BorderRadius.circular(8),
-        border: isRelevant ? Border.all(color: AppTheme.primaryColor.withOpacity(0.2)) : Border.all(color: Colors.transparent),
+        border: isRelevant ? Border.all(color: AppTheme.primaryColor.withValues(alpha:0.2)) : Border.all(color: Colors.transparent),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -482,7 +482,7 @@ class _CollectionScreenState extends State<CollectionScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha:0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -607,7 +607,7 @@ class _CollectionScreenState extends State<CollectionScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha:0.06),
             blurRadius: 12,
             offset: const Offset(0, -4),
           ),

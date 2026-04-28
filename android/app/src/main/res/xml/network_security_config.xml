@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network security configuration for SHG Employee App.
+
+    Policy:
+      * Production traffic must be HTTPS only. Cleartext (HTTP) is forbidden
+        globally via the base-config below, regardless of the device's API
+        level. This protects against accidental cleartext requests and
+        downgrade attacks even on Android < 9 (where cleartext is permitted
+        by platform default).
+      * The only exceptions are `localhost` and `10.0.2.2` (the Android
+        emulator's alias for the host machine's loopback). Developers running
+        the app against a local backend during testing need cleartext to
+        these hosts; real devices in production never resolve them.
+      * Trust anchors are limited to the system CA store. We do NOT trust
+        user-installed certificates, which prevents traffic interception by
+        attacker-installed root CAs (e.g. via MDM profiles or social
+        engineering).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

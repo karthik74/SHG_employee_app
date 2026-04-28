@@ -173,7 +173,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -188,7 +188,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -274,7 +274,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 2)),
           ],
         ),
         child: Row(
@@ -284,8 +284,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
               height: 46,
               decoration: BoxDecoration(
                 color: isActive
-                    ? AppTheme.primaryColor.withOpacity(0.1)
-                    : Colors.grey.withOpacity(0.1),
+                    ? AppTheme.primaryColor.withValues(alpha:0.1)
+                    : Colors.grey.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -337,8 +337,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: isActive
-                        ? AppTheme.secondaryColor.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.1),
+                        ? AppTheme.secondaryColor.withValues(alpha:0.1)
+                        : Colors.grey.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -401,26 +401,30 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              child: FutureBuilder<List<Map<String, dynamic>>>(
+              child: FutureBuilder<List<dynamic>>(
                 future: groupId != null
                     ? Future.wait([
                         _groupsApi.fetchGroupDetails(groupId),
                         _groupsApi.fetchGroupAccounts(groupId),
+                        _groupsApi.fetchGsimAccounts(groupId),
                       ])
-                    : Future.value(<Map<String, dynamic>>[{}, {}]),
+                    : Future.value(<dynamic>[<String, dynamic>{}, <String, dynamic>{}, <dynamic>[]]),
                 builder: (ctx, snapshot) {
                   final loading = snapshot.connectionState == ConnectionState.waiting;
-                  final details = (snapshot.data != null && snapshot.data!.isNotEmpty)
-                      ? snapshot.data![0]
+                  final data = snapshot.data;
+                  final details = (data != null && data.isNotEmpty && data[0] is Map<String, dynamic>)
+                      ? data[0] as Map<String, dynamic>
                       : <String, dynamic>{};
-                  final accounts = (snapshot.data != null && snapshot.data!.length > 1)
-                      ? snapshot.data![1]
+                  final accounts = (data != null && data.length > 1 && data[1] is Map<String, dynamic>)
+                      ? data[1] as Map<String, dynamic>
                       : <String, dynamic>{};
+                  final gsimAccounts = (data != null && data.length > 2 && data[2] is List)
+                      ? data[2] as List
+                      : const [];
 
                   final members = (details['clientMembers'] as List?) ?? const [];
                   final glim = (accounts['groupLoanIndividualMonitoringAccounts'] as List?) ?? const [];
                   final memberLoans = (accounts['memberLoanAccounts'] as List?) ?? const [];
-                  final memberSavings = (accounts['memberSavingsAccounts'] as List?) ?? const [];
 
                   final summary = _computeSummary(members, memberLoans, glim);
 
@@ -473,7 +477,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         _buildClientMembersTable(members),
                         const SizedBox(height: 24),
                         _overviewSectionHeader(Icons.grid_view_rounded, 'GSIM Account Overview'),
-                        _buildGsimTable(memberSavings),
+                        _buildGsimTable(gsimAccounts),
                         const SizedBox(height: 24),
                         _overviewSectionHeader(Icons.account_balance_wallet_rounded, 'GLIM Loans Account Overview'),
                         _buildGlimTable(glim),
@@ -565,7 +569,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha:0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(c['icon'] as IconData, color: color, size: 20),
@@ -921,7 +925,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
     final flex = [4, 3, 2, 2];
     return _overviewTableCard(
       children: [
-        _tableHeaderRow(const ['Name', 'Account No.', 'Branch', 'JLG Loan Application'], flex),
+        _tableHeaderRow(const ['Name', 'Account No.'], flex),
         ...List.generate(members.length, (i) {
           final m = members[i] as Map<String, dynamic>;
           final name = m['displayName']?.toString()
@@ -955,18 +959,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               ),
               Text(accountNo,
                   style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
-              Text(branch,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
-              GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('JLG loan application for $name')),
-                  );
-                },
-                child: const Icon(Icons.add, color: AppTheme.primaryColor, size: 20),
-              ),
+              
             ],
             flex,
             alt: i.isOdd,
@@ -976,32 +969,36 @@ class _GroupsScreenState extends State<GroupsScreen> {
     );
   }
 
-  Widget _buildGsimTable(List<dynamic> savings) {
-    if (savings.isEmpty) {
-      return _emptyTableNote('No GSIM savings accounts.');
+  Widget _buildGsimTable(List<dynamic> gsimAccounts) {
+    if (gsimAccounts.isEmpty) {
+      return _emptyTableNote('No GSIM accounts.');
     }
     final flex = [2, 3, 4, 2, 2];
     return _overviewTableCard(
       children: [
         _tableHeaderRow(const ['GSIM ID', 'Account Number', 'Product', 'Balance', 'Status'], flex),
-        ...List.generate(savings.length, (i) {
-          final a = savings[i] as Map<String, dynamic>;
-          final statusMap = a['status'] is Map ? a['status'] as Map : const {};
-          final statusValue = statusMap['value']?.toString() ?? '—';
-          final active = statusMap['active'] == true;
+        ...List.generate(gsimAccounts.length, (i) {
+          final a = gsimAccounts[i] as Map<String, dynamic>;
+          final children = (a['childGSIMAccounts'] as List?) ?? const [];
+          final firstChild = children.isNotEmpty && children.first is Map
+              ? children.first as Map
+              : const {};
+          final productName = firstChild['productName']?.toString() ?? '—';
+          final savingsStatus = a['savingsStatus']?.toString() ?? '—';
+          final active = savingsStatus.toUpperCase() == 'ACTIVE';
           return _tableBodyRow(
             [
-              Text(a['id']?.toString() ?? '—',
+              Text(a['gsimId']?.toString() ?? '—',
                   style: const TextStyle(fontSize: 13, color: AppTheme.primaryColor, fontWeight: FontWeight.w700)),
-              Text(a['accountNo']?.toString() ?? '—',
+              Text(a['accountNumber']?.toString() ?? '—',
                   style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
-              Text(a['productName']?.toString() ?? '—',
+              Text(productName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
-              Text(_formatAmount(_num(a['accountBalance'])),
+              Text(_formatAmount(_num(a['parentBalance'])),
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
-              _statusPill(statusValue, active: active),
+              _statusPill(savingsStatus, active: active),
             ],
             flex,
             alt: i.isOdd,
@@ -1067,9 +1064,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   String _formatAmount(double amount) {
-    if (amount >= 100000) return '${(amount / 100000).toStringAsFixed(2)}L';
-    if (amount >= 1000) return '${(amount / 1000).toStringAsFixed(1)}K';
-    return amount.toStringAsFixed(0);
+    final whole = amount.toStringAsFixed(0);
+    final negative = whole.startsWith('-');
+    final digits = negative ? whole.substring(1) : whole;
+    if (digits.length <= 3) return '${negative ? '-' : ''}₹$digits';
+    final last3 = digits.substring(digits.length - 3);
+    final rest = digits.substring(0, digits.length - 3);
+    final buf = StringBuffer();
+    for (int i = 0; i < rest.length; i++) {
+      buf.write(rest[i]);
+      final remaining = rest.length - 1 - i;
+      if (remaining > 0 && remaining.isEven) buf.write(',');
+    }
+    return '${negative ? '-' : ''}₹$buf,$last3';
   }
 
 }

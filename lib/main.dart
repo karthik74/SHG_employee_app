@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,8 +9,8 @@ import 'screens/survey_hub_screen.dart';
 import 'screens/groups_screen.dart';
 import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
-import 'screens/login_screen.dart';
 import 'screens/sakhi_creation_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/auth_session.dart';
 
 class _DevHttpOverrides extends HttpOverrides {
@@ -22,9 +23,26 @@ class _DevHttpOverrides extends HttpOverrides {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
 
-  if (EnvConfig.isDevMode) {
+  // Only attempt to load `.env` in non-release builds. In release the file is
+  // not bundled as an asset (config comes from --dart-define), so calling
+  // dotenv.load would throw. We also wrap in try/catch so a missing/malformed
+  // .env in debug doesn't crash the app — EnvConfig will surface clearer
+  // errors when a required key is actually requested.
+  if (!kReleaseMode) {
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (e) {
+      debugPrint('dotenv.load skipped: $e');
+    }
+  }
+
+  // SECURITY: Never bypass TLS certificate validation in a release build,
+  // regardless of what DEV_MODE says. The `!kReleaseMode` guard is the
+  // load-bearing check here — `EnvConfig.isDevMode` is only a developer
+  // convenience and could otherwise be flipped via --dart-define on a
+  // production build, silently disabling cert pinning/verification.
+  if (!kReleaseMode && EnvConfig.isDevMode) {
     HttpOverrides.global = _DevHttpOverrides();
   }
 
@@ -49,9 +67,7 @@ class EmployeeApp extends StatelessWidget {
       title: 'NavaJyothi Employee App',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: AuthSession.instance.isLoggedIn
-          ? const MainNavigation()
-          : const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -110,15 +126,22 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: _BottomNavBar(
-        items: _navItems,
-        currentIndex: _currentIndex,
-        onTap: _onItemTap,
+    return PopScope(
+      canPop: _currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() => _currentIndex = 0);
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: _currentIndex,
+          children: _screens,
+        ),
+        bottomNavigationBar: _BottomNavBar(
+          items: _navItems,
+          currentIndex: _currentIndex,
+          onTap: _onItemTap,
+        ),
       ),
     );
   }
@@ -159,7 +182,7 @@ class _BottomNavBar extends StatelessWidget {
           border: Border(top: BorderSide(color: Colors.grey.shade200, width: 0.5)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha:0.05),
               blurRadius: 16,
               offset: const Offset(0, -2),
             ),
@@ -212,7 +235,7 @@ class _NavBarItem extends StatelessWidget {
       label: item.label,
       child: InkWell(
         onTap: onTap,
-        splashColor: selectedColor.withOpacity(0.08),
+        splashColor: selectedColor.withValues(alpha:0.08),
         highlightColor: Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -225,7 +248,7 @@ class _NavBarItem extends StatelessWidget {
                 width: selected ? 44 : 32,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: selected ? selectedColor.withOpacity(0.12) : Colors.transparent,
+                  color: selected ? selectedColor.withValues(alpha:0.12) : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 alignment: Alignment.center,

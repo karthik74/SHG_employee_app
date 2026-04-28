@@ -1,7 +1,7 @@
 name: employee_app
 description: NavaJyothi Employee App for microfinance field officers.
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.4+5
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -21,6 +21,7 @@ dependencies:
 
   # Local storage
   shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.2.2
 
   # State management (optional - start with setState)
   # provider: ^6.1.1
@@ -39,11 +40,15 @@ dependencies:
   http_parser: ^4.1.2
   url_launcher: ^6.2.5
 
+  # App version info (for version-control check on startup)
+  package_info_plus: ^9.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
+  mocktail: ^1.0.4
 
 flutter_launcher_icons:
   android: "ic_launcher"
@@ -72,6 +77,12 @@ flutter:
   #         weight: 800
 
   assets:
+    # `.env` is bundled so flutter_dotenv can load it in debug/profile builds.
+    # main.dart only calls dotenv.load() when !kReleaseMode, so values never
+    # enter memory in release. For release builds, configure via
+    # --dart-define=API_BASE_URL=... --dart-define=TENANT_ID=... and ensure
+    # the local .env at build time does NOT contain production secrets — the
+    # file itself ships inside the APK regardless of when it is read.
     - .env
     - assets/logo.png
     - assets/logo.webp

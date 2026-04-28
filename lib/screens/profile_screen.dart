@@ -97,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await AuthSession.instance.clear();
-              if (!mounted) return;
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,
@@ -190,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryColor.withOpacity(0.3),
+                      color: AppTheme.primaryColor.withValues(alpha:0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -247,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: AppTheme.secondaryColor.withOpacity(0.1),
+                color: AppTheme.secondaryColor.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -307,7 +307,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.08),
+              color: AppTheme.primaryColor.withValues(alpha:0.08),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 16, color: AppTheme.primaryColor),
@@ -358,7 +358,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: (item['color'] as Color).withOpacity(0.1),
+                    color: (item['color'] as Color).withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(item['icon'] as IconData,
@@ -395,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontSize: 15)),
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14),
-          side: BorderSide(color: Colors.red.withOpacity(0.4)),
+          side: BorderSide(color: Colors.red.withValues(alpha:0.4)),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12)),
         ),

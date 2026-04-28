@@ -124,7 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               'Welcome back 👋',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha:0.8),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -144,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       CircleAvatar(
                         radius: 22,
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withValues(alpha:0.2),
                         child: Text(
                           initial,
                           style: const TextStyle(
@@ -164,7 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(
                         child: Text(
                           officeName,
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                          style: TextStyle(color: Colors.white.withValues(alpha:0.7), fontSize: 12),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

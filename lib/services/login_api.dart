@@ -21,7 +21,7 @@ class LoginApi {
     if (decoded['authenticated'] != true) {
       throw ApiException(401, 'Authentication failed');
     }
-    AuthSession.instance.saveFromAuthResponse(decoded);
+    await AuthSession.instance.saveFromAuthResponse(decoded);
     return decoded;
   }
 

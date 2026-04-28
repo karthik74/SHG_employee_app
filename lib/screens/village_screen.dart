@@ -136,7 +136,7 @@ class _VillageScreenState extends State<VillageScreen> {
                               color: _showPending ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: _showPending ? [
-                                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                                BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 4, offset: const Offset(0, 2))
                               ] : [],
                             ),
                             alignment: Alignment.center,
@@ -161,7 +161,7 @@ class _VillageScreenState extends State<VillageScreen> {
                               color: !_showPending ? Colors.white : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: !_showPending ? [
-                                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                                BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 4, offset: const Offset(0, 2))
                               ] : [],
                             ),
                             alignment: Alignment.center,
@@ -230,10 +230,10 @@ class _VillageScreenState extends State<VillageScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.secondaryColor.withOpacity(0.3)),
+        border: Border.all(color: AppTheme.secondaryColor.withValues(alpha:0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha:0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -245,7 +245,7 @@ class _VillageScreenState extends State<VillageScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: isPending ? AppTheme.secondaryColor.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+              color: isPending ? AppTheme.secondaryColor.withValues(alpha:0.1) : Colors.green.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -296,9 +296,9 @@ class _VillageScreenState extends State<VillageScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: Colors.green.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                border: Border.all(color: Colors.green.withValues(alpha:0.3)),
               ),
               child: const Row(
                  mainAxisSize: MainAxisSize.min,
