@@ -1,4 +1,4 @@
-package com.navajyothi.employee
+package com.navajyoti.employee
 
 import io.flutter.embedding.android.FlutterActivity
 

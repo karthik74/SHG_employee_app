@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,7 @@ import 'theme/app_theme.dart';
 import 'screens/sakhi_creation_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/auth_session.dart';
+import 'services/push_notification_service.dart';
 
 class _DevHttpOverrides extends HttpOverrides {
   @override
@@ -24,17 +27,13 @@ class _DevHttpOverrides extends HttpOverrides {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Only attempt to load `.env` in non-release builds. In release the file is
-  // not bundled as an asset (config comes from --dart-define), so calling
-  // dotenv.load would throw. We also wrap in try/catch so a missing/malformed
-  // .env in debug doesn't crash the app — EnvConfig will surface clearer
-  // errors when a required key is actually requested.
-  if (!kReleaseMode) {
-    try {
-      await dotenv.load(fileName: '.env');
-    } catch (e) {
-      debugPrint('dotenv.load skipped: $e');
-    }
+  // Load `.env` in ALL build modes (it is bundled as a Flutter asset). Wrap
+  // in try/catch so a missing/malformed file doesn't crash startup —
+  // EnvConfig will surface a clearer error if a required key is then missing.
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('dotenv.load failed: $e');
   }
 
   // SECURITY: Never bypass TLS certificate validation in a release build,
@@ -55,6 +54,17 @@ Future<void> main() async {
 
   await AuthSession.instance.init();
 
+  // Firebase + Cloud Messaging. Failure here must not block the app from
+  // starting — registration is best-effort.
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+    await PushNotificationService.instance.init();
+  } catch (e, st) {
+    debugPrint('[Push] Firebase init failed: $e');
+    debugPrint('$st');
+  }
+
   runApp(const EmployeeApp());
 }
 
@@ -64,7 +74,7 @@ class EmployeeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'NavaJyothi Employee App',
+      title: 'NavaJyoti Employee App',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),

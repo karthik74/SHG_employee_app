@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/login_api.dart';
+import '../services/push_notification_service.dart';
 import '../theme/app_theme.dart';
 import '../main.dart';
 
@@ -37,6 +39,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _usernameController.text.trim(),
         _passwordController.text,
       );
+      // Fire-and-forget — must not block navigation on a slow / failing
+      // push-registration round-trip.
+      unawaited(PushNotificationService.instance.registerWithBackend());
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const MainNavigation()),

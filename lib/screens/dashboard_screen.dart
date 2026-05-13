@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/dashboard_api.dart';
 import '../services/staff_api.dart';
 import '../services/auth_session.dart';
+import '../services/push_notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 
@@ -26,6 +28,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _fetchStats();
     _fetchStaff();
+    // Fire-and-forget — ensures the FCM token is registered every time the
+    // dashboard mounts (covers fresh login, splash-resume, and re-mounts).
+    unawaited(PushNotificationService.instance.registerWithBackend());
   }
 
   Future<void> _fetchStaff() async {

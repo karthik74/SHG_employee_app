@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart';
 import '../services/auth_session.dart';
+import '../services/push_notification_service.dart';
 import '../services/version_api.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
@@ -24,14 +27,18 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     final info = await PackageInfo.fromPlatform();
     final currentVersion = info.version;
+    debugPrint('[VersionCheck] starting, currentVersion=$currentVersion '
+        'packageName=${info.packageName}');
 
     try {
       final remote = await VersionApi.instance.fetchVersionControl();
+      debugPrint('[VersionCheck] response: versionName=${remote.versionName} '
+          'forceUpdate=${remote.forceUpdate} url=${remote.url}');
       if (!mounted) return;
 
       if (remote.versionName.isNotEmpty &&
-          remote.versionName != currentVersion &&
-          remote.forceUpdate) {
+          remote.versionName != currentVersion) {
+        debugPrint('[VersionCheck] mismatch → routing to ForceUpdateScreen');
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => ForceUpdateScreen(
@@ -43,9 +50,17 @@ class _SplashScreenState extends State<SplashScreen> {
         );
         return;
       }
-    } catch (_) {
+    } catch (e, st) {
       // Version check failed (offline, server issue). Proceed to the app
-      // so users aren't trapped on the splash.
+      // so users aren't trapped on the splash, but log for diagnosis.
+      debugPrint('[VersionCheck] failed: $e');
+      debugPrint('$st');
+    }
+
+    if (AuthSession.instance.isLoggedIn) {
+      // Refresh the FCM registration in the background — token may have
+      // rotated since last launch. Fire-and-forget; never block UI.
+      unawaited(PushNotificationService.instance.registerWithBackend());
     }
 
     if (!mounted) return;

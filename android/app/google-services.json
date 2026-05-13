@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "930130103004",
+    "project_id": "shgsakhi-c7847",
+    "storage_bucket": "shgsakhi-c7847.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930130103004:android:3288df3195143db7cb0219",
+        "android_client_info": {
+          "package_name": "com.navajyoti.employee"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqgXHavwLEX0iRHyGe7nCmLXwWOlrVCnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930130103004:android:e203a55e88031df4cb0219",
+        "android_client_info": {
+          "package_name": "com.navajyoti.sakhi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqgXHavwLEX0iRHyGe7nCmLXwWOlrVCnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

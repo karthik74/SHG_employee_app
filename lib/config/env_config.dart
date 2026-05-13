@@ -21,17 +21,15 @@ class EnvConfig {
   static const String _defDevMode =
       String.fromEnvironment('DEV_MODE', defaultValue: '');
 
-  /// Returns the value of [key], preferring the compile-time define.
-  /// Falls back to dotenv only in non-release builds.
+  /// Returns the value of [key], preferring the compile-time define and
+  /// falling back to dotenv in all build modes.
   static String? _lookup(String key, String compileTimeValue) {
     if (compileTimeValue.isNotEmpty) return compileTimeValue;
-    if (!kReleaseMode) {
-      try {
-        final v = dotenv.maybeGet(key);
-        if (v != null && v.isNotEmpty) return v;
-      } catch (_) {
-        // dotenv not initialized — fine in release-like flows.
-      }
+    try {
+      final v = dotenv.maybeGet(key);
+      if (v != null && v.isNotEmpty) return v;
+    } catch (_) {
+      // dotenv not initialized.
     }
     return null;
   }
